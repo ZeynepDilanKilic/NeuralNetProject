@@ -11,13 +11,21 @@ double Neuron::calculateError(double output, double expected)
 
 double Neuron::output(const std::vector<double>& intputs)
 {
-	double total = 0.0;
-	for (size_t i = 0; i < weights.size(); ++i)
-	{
-		total += weights[i] * intputs[i];
+	if(inputs.size() != weights.size(){
+		throw std::invalid_argument(
+			"Input size must match the number of weights."
+		);
 	}
-	total += bias;
-	lastOutput = applyActivationFunction(ActivationFunctionType::Sigmoid, total);
+	double total = bias;
+
+	for(std::size_t i = 0; i < weights.size(); ++i){
+		total += weights[i] * inputs[i];
+	}
+
+	lastOutput = applyActivationFunction(
+		activationFunctionType,
+		total
+	);
 	return lastOutput;
 }
 
@@ -33,7 +41,7 @@ void Neuron::updateParameters(const std::vector<double>& inputs, double output, 
 }
 
 void Neuron::updateParameters(const std::vector<double>& inputs, double error, double learningRate) {
-	double derivative = lastOutput * (1 - lastOutput); // Sigmoid için
+	double derivative = lastOutput * (1 - lastOutput); // Sigmoid iÃ§in
 	for (size_t i = 0; i < weights.size(); ++i) {
 		weights[i] -= learningRate * derivative * error * inputs[i];
 	}
@@ -45,9 +53,9 @@ std::vector<double> Neuron::calculateDeltas(double error)
 {
 	std::vector<double> deltas(weights.size());
 	for (size_t i = 0; i < weights.size(); ++i) {
-		// Aktivasyon fonksiyonunun türevi ile hata çarpýlýr.
-		// Örneðin, sigmoid aktivasyon fonksiyonu için:
-		double derivative = lastOutput * (1 - lastOutput); // sigmoid'in türevi
+		// Aktivasyon fonksiyonunun tÃ¼revi ile hata Ã§arpÃ½lÃ½r.
+		// Ã–rneÃ°in, sigmoid aktivasyon fonksiyonu iÃ§in:
+		double derivative = lastOutput * (1 - lastOutput); // sigmoid'in tÃ¼revi
 		deltas[i] = error * derivative;
 	}
 	return deltas;
@@ -135,7 +143,7 @@ double Neuron::getLastOutput() const
 	return lastOutput;
 }
 
-//bunlarý neurondan çaðýrmak gerekiyor.
+//bunlarÃ½ neurondan Ã§aÃ°Ã½rmak gerekiyor.
 double Neuron::derivativeOfSigmoid(double x) {
 	return x * (1 - x);
 }
