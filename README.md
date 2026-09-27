@@ -107,4 +107,4 @@ docs/adr/            architecture decision records
 
 ## License
 
-Choose a license before publishing (MIT and Apache-2.0 are common for libraries).
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.
