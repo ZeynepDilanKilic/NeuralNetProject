@@ -1,0 +1,22 @@
+# Build trees
+build/
+out/
+cmake-build-*/
+
+# IDE / editor
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.swp
+
+# Coverage artefacts
+*.gcda
+*.gcno
+*.gcov
+coverage/
+
+# OS noise
+.DS_Store
+Thumbs.db

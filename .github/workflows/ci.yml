@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux GCC
+            os: ubuntu-latest
+            cmake_args: -DCMAKE_CXX_COMPILER=g++
+          - name: Linux Clang
+            os: ubuntu-latest
+            cmake_args: -DCMAKE_CXX_COMPILER=clang++
+          - name: Windows MSVC
+            os: windows-latest
+            cmake_args: ""
+          - name: macOS Clang
+            os: macos-latest
+            cmake_args: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DNEURALNET_WARNINGS_AS_ERRORS=ON
+          ${{ matrix.cmake_args }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build --build-config Release --output-on-failure
+
+      - name: Run examples
+        shell: bash
+        run: |
+          find build -type f \( -name training_check -o -name training_check.exe \) -exec {} \;
+          find build -type f \( -name xor -o -name xor.exe \) -exec {} \;
+
+  sanitizers:
+    name: ASan + UBSan (Clang)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_COMPILER=clang++
+          -DNEURALNET_ENABLE_SANITIZERS=ON
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:strict_string_checks=1:check_initialization_order=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --test-dir build --output-on-failure
+
+  static-analysis:
+    name: clang-tidy + cppcheck + clang-format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang clang-tidy clang-format cppcheck
+      - name: Configure (Clang, for an accurate compile_commands.json)
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: clang-format
+        run: clang-format --dry-run --Werror include/neuralnet/*.h src/*.cpp examples/*.cpp tests/*.cpp
+      - name: clang-tidy
+        run: clang-tidy -p build src/*.cpp examples/*.cpp
+      - name: cppcheck
+        run: >
+          cppcheck --std=c++20
+          --enable=warning,style,performance,portability
+          --inline-suppr
+          --error-exitcode=1
+          --suppress=missingIncludeSystem
+          -I include src examples tests
+
+  coverage:
+    name: Coverage (GCC + gcovr)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gcovr
+        run: pip install gcovr
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_COMPILER=g++
+          -DNEURALNET_ENABLE_COVERAGE=ON
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Report
+        run: >
+          gcovr -r . --gcov-object-directory build
+          --filter 'src/' --filter 'include/'
+          --exclude-directories 'build/_deps'
+          --print-summary
+          --fail-under-line 90
+          --html-details coverage/index.html
+          --xml coverage/coverage.xml
+      - name: Summary
+        run: >
+          gcovr -r . --gcov-object-directory build
+          --filter 'src/' --filter 'include/'
+          --exclude-directories 'build/_deps'
+          --markdown >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
