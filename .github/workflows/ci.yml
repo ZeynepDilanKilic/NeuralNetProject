@@ -115,14 +115,15 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
       - name: Report
-        run: >
-          gcovr -r . --gcov-object-directory build
-          --filter 'src/' --filter 'include/'
-          --exclude-directories 'build/_deps'
-          --print-summary
-          --fail-under-line 90
-          --html-details coverage/index.html
-          --xml coverage/coverage.xml
+        run: |
+          mkdir -p coverage
+          gcovr -r . --gcov-object-directory build \
+            --filter 'src/' --filter 'include/' \
+            --exclude-directories 'build/_deps' \
+            --print-summary \
+            --fail-under-line 90 \
+            --html-details coverage/index.html \
+            --xml coverage/coverage.xml
       - name: Summary
         run: >
           gcovr -r . --gcov-object-directory build
