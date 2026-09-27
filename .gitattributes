@@ -1,0 +1,9 @@
+# Normalise line endings so Windows and Linux checkouts produce identical hashes.
+* text=auto eol=lf
+*.h    text diff=cpp
+*.cpp  text diff=cpp
+*.cmake text
+CMakeLists.txt text
+*.md   text
+*.yml  text
+*.json text

@@ -1,0 +1,57 @@
+---
+# Run with:  clang-tidy -p build/<clang-configured preset> src/*.cpp examples/*.cpp
+#
+# Disabled checks, and why:
+#   modernize-use-trailing-return-type   - stylistic; the codebase uses leading return types
+#   *-magic-numbers                      - math code is full of legitimate literals (0.5, 6.0)
+#   readability-identifier-length        - i, j, w, l are idiomatic loop/index names here
+#   misc-include-cleaner                 - too noisy with the standard library
+#   modernize-use-designated-initializers, portability-avoid-pragma-once
+#                                        - LLVM 20+ checks that conflict with the house style
+#   cppcoreguidelines-pro-bounds-avoid-unchecked-container-access
+#                                        - vector sizes are validated once at function entry;
+#                                          .at() inside the inner loops would just add cost
+#   bugprone-easily-swappable-parameters - (inputs, targets) and (error, learningRate) pairs
+#                                          are inherent to the API; strong types are a
+#                                          roadmap item, not a lint fix
+Checks: >
+  -*,
+  bugprone-*,
+  clang-analyzer-*,
+  cppcoreguidelines-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -modernize-use-trailing-return-type,
+  -readability-magic-numbers,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-identifier-length,
+  -readability-function-cognitive-complexity,
+  -misc-include-cleaner,
+  -modernize-use-designated-initializers,
+  -portability-avoid-pragma-once,
+  -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
+  -bugprone-easily-swappable-parameters
+WarningsAsErrors: '*'
+HeaderFilterRegex: 'include/neuralnet/.*'
+FormatStyle: file
+CheckOptions:
+  readability-identifier-naming.NamespaceCase: lower_case
+  readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.StructCase: CamelCase
+  readability-identifier-naming.EnumCase: CamelCase
+  readability-identifier-naming.EnumConstantCase: CamelCase
+  readability-identifier-naming.FunctionCase: camelBack
+  readability-identifier-naming.MethodCase: camelBack
+  readability-identifier-naming.VariableCase: camelBack
+  readability-identifier-naming.ParameterCase: camelBack
+  readability-identifier-naming.PrivateMemberCase: camelBack
+  readability-identifier-naming.PrivateMemberSuffix: '_'
+  readability-identifier-naming.ClassConstantCase: CamelCase
+  readability-identifier-naming.ClassConstantPrefix: 'k'
+  readability-identifier-naming.GlobalConstantCase: CamelCase
+  readability-identifier-naming.GlobalConstantPrefix: 'k'
+  readability-identifier-naming.ConstexprVariableCase: camelBack
+  readability-identifier-naming.TemplateParameterCase: CamelCase
