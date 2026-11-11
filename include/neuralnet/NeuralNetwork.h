@@ -16,8 +16,12 @@ struct LayerSpec {
     constexpr LayerSpec(std::size_t unitCount, ActivationType layerActivation) noexcept
         : units(unitCount), activation(layerActivation) {}
 
+    // A plain value type: public fields are the point (`spec.units`), the constructor only
+    // exists to make the activation mandatory, and there is no invariant to protect.
+    // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
     std::size_t units;         ///< Number of neurons (outputs) in the layer; must be > 0.
     ActivationType activation; ///< Activation applied by every neuron in the layer.
+    // NOLINTEND(misc-non-private-member-variables-in-classes)
 };
 
 /// A feed-forward network trained with per-sample stochastic gradient descent on the
