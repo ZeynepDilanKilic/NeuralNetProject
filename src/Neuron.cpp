@@ -55,6 +55,8 @@ double Neuron::activate(ActivationType type, double x) {
         return std::tanh(x);
     case ActivationType::LeakyReLU:
         return x > 0.0 ? x : kLeakyReluSlope * x;
+    case ActivationType::Linear:
+        return x;
     }
     throw std::invalid_argument("Unknown activation function type.");
 }
@@ -69,6 +71,8 @@ double Neuron::activationDerivative(ActivationType type, double output) {
         return 1.0 - (output * output);
     case ActivationType::LeakyReLU:
         return output > 0.0 ? 1.0 : kLeakyReluSlope;
+    case ActivationType::Linear:
+        return 1.0;
     }
     throw std::invalid_argument("Unknown activation function type.");
 }

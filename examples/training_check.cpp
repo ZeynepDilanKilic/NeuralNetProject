@@ -10,7 +10,7 @@ int main() {
     using neuralnet::ActivationType;
     using neuralnet::NeuralNetwork;
 
-    NeuralNetwork network({1}, ActivationType::Sigmoid);
+    NeuralNetwork network(1, {{1, ActivationType::Sigmoid}});
     const std::vector<double> inputs{1.0};
     const std::vector<double> targets{1.0};
 

@@ -26,7 +26,8 @@ int main() {
     constexpr int epochs = 5000;
     constexpr double learningRate = 0.5;
     constexpr double tolerance = 0.1;
-    NeuralNetwork network({2, 4, 1}, ActivationType::Tanh);
+    // 2 inputs -> 4 tanh hidden units -> 1 sigmoid output (a probability-like score).
+    NeuralNetwork network(2, {{4, ActivationType::Tanh}, {1, ActivationType::Sigmoid}});
 
     std::cout << std::fixed << std::setprecision(4);
     for (int epoch = 1; epoch <= epochs; ++epoch) {

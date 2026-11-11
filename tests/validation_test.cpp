@@ -1,23 +1,42 @@
 #include "neuralnet/NeuralNetwork.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <cstddef>
 #include <limits>
 #include <random>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
+using Catch::Matchers::ContainsSubstring;
 using neuralnet::ActivationType;
 using neuralnet::Layer;
+using neuralnet::LayerSpec;
 using neuralnet::NeuralNetwork;
 using neuralnet::Neuron;
 
+// An aggregate LayerSpec would accept {4} and silently use Sigmoid; the activation is required.
+static_assert(!std::is_constructible_v<LayerSpec, std::size_t>);
+static_assert(std::is_constructible_v<LayerSpec, std::size_t, ActivationType>);
+
 TEST_CASE("Construction rejects degenerate shapes", "[validation]") {
     std::mt19937 rng(0);
-    CHECK_THROWS_AS(NeuralNetwork({}, ActivationType::Sigmoid), std::invalid_argument);
-    CHECK_THROWS_AS(NeuralNetwork({2, 0, 1}, ActivationType::Sigmoid), std::invalid_argument);
+    const std::vector<LayerSpec> noLayers;
+    const std::vector<LayerSpec> zeroUnits{{0, ActivationType::Sigmoid},
+                                           {1, ActivationType::Sigmoid}};
+    const std::vector<LayerSpec> zeroUnitsLater{{3, ActivationType::Tanh},
+                                                {0, ActivationType::Linear}};
+    const std::vector<LayerSpec> valid{{1, ActivationType::Sigmoid}};
+    CHECK_THROWS_AS(NeuralNetwork(2, noLayers), std::invalid_argument);
+    CHECK_THROWS_AS(NeuralNetwork(2, zeroUnits), std::invalid_argument);
+    // The message names the offending layer, so the error is actionable.
+    CHECK_THROWS_WITH(NeuralNetwork(2, zeroUnitsLater), ContainsSubstring("layers[1]"));
+    CHECK_THROWS_WITH(NeuralNetwork(0, valid),
+                      ContainsSubstring("network needs at least one input"));
+    CHECK_NOTHROW(NeuralNetwork(2, valid));
     CHECK_THROWS_AS(Layer(0, 3, ActivationType::ReLU, rng), std::invalid_argument);
     CHECK_THROWS_AS(Layer(3, 0, ActivationType::ReLU, rng), std::invalid_argument);
     CHECK_THROWS_AS(Neuron({}, 0.0, ActivationType::ReLU), std::invalid_argument);
@@ -39,14 +58,14 @@ TEST_CASE("Neuron and Layer reject mismatched vector sizes on their own", "[vali
 }
 
 TEST_CASE("Forward pass rejects an input vector of the wrong width", "[validation]") {
-    NeuralNetwork network({2, 3, 1}, ActivationType::Sigmoid);
+    NeuralNetwork network(2, {{3, ActivationType::Sigmoid}, {1, ActivationType::Sigmoid}});
     CHECK_THROWS_AS(network.predict({1.0}), std::invalid_argument);
     CHECK_THROWS_AS(network.predict({1.0, 2.0, 3.0}), std::invalid_argument);
     CHECK_NOTHROW(network.predict({1.0, 2.0}));
 }
 
 TEST_CASE("Training validates every argument", "[validation]") {
-    NeuralNetwork network({2, 3, 1}, ActivationType::Sigmoid);
+    NeuralNetwork network(2, {{3, ActivationType::Sigmoid}, {1, ActivationType::Sigmoid}});
     const std::vector<double> inputs{1.0, 0.0};
     const std::vector<double> targets{1.0};
 
@@ -80,7 +99,7 @@ TEST_CASE("Training validates every argument", "[validation]") {
 }
 
 TEST_CASE("A rejected training call leaves every parameter unchanged", "[validation]") {
-    NeuralNetwork network({2, 3, 1}, ActivationType::Tanh);
+    NeuralNetwork network(2, {{3, ActivationType::Tanh}, {1, ActivationType::Tanh}});
     const auto snapshot = [&network] {
         std::vector<double> parameters;
         for (std::size_t l = 0; l < network.getNumberOfLayers(); ++l) {
@@ -107,14 +126,14 @@ TEST_CASE("A rejected training call leaves every parameter unchanged", "[validat
 }
 
 TEST_CASE("computeLoss rejects a target vector of the wrong width", "[validation]") {
-    NeuralNetwork network({2, 3, 1}, ActivationType::Sigmoid);
+    NeuralNetwork network(2, {{3, ActivationType::Sigmoid}, {1, ActivationType::Sigmoid}});
     CHECK_THROWS_AS(network.computeLoss({1.0, 0.0}, {1.0, 2.0}), std::invalid_argument);
     CHECK_THROWS_AS(network.computeLoss({1.0, 0.0}, {}), std::invalid_argument);
     CHECK_THROWS_AS(network.computeLoss({1.0}, {1.0}), std::invalid_argument);
 }
 
 TEST_CASE("A moved-from network is safe to query and refuses to run", "[validation]") {
-    NeuralNetwork source({2, 3, 1}, ActivationType::Sigmoid);
+    NeuralNetwork source(2, {{3, ActivationType::Sigmoid}, {1, ActivationType::Sigmoid}});
     const NeuralNetwork destination = std::move(source);
     CHECK(destination.getInputSize() == std::size_t{2});
 
@@ -156,21 +175,33 @@ TEST_CASE("A moved-from layer reports zero inputs instead of invoking UB", "[val
 }
 
 TEST_CASE("Accessors are bounds-checked", "[validation]") {
-    NeuralNetwork network({2, 3, 1}, ActivationType::Sigmoid);
-    CHECK_THROWS_AS(network.getLayer(3), std::out_of_range);
-    CHECK_THROWS_AS(network.getLayer(1).getNeuron(3), std::out_of_range);
-    CHECK_THROWS_AS(network.getLayer(1).getNeuron(0).getWeight(2), std::out_of_range);
-    CHECK_THROWS_AS(network.getLayer(1).getNeuron(0).setWeight(2, 0.0), std::out_of_range);
-    CHECK_NOTHROW(network.getLayer(2).getNeuron(0).getWeight(2));
+    NeuralNetwork network(2, {{3, ActivationType::Sigmoid}, {1, ActivationType::Sigmoid}});
+    CHECK_THROWS_AS(network.getLayer(2), std::out_of_range);
+    CHECK_THROWS_AS(network.getLayer(0).getNeuron(3), std::out_of_range);
+    CHECK_THROWS_AS(network.getLayer(0).getNeuron(0).getWeight(2), std::out_of_range);
+    CHECK_THROWS_AS(network.getLayer(0).getNeuron(0).setWeight(2, 0.0), std::out_of_range);
+    CHECK_NOTHROW(network.getLayer(1).getNeuron(0).getWeight(2));
 }
 
 TEST_CASE("Network shape accessors report the configured topology", "[validation]") {
-    NeuralNetwork network({2, 3, 1}, ActivationType::Sigmoid);
-    CHECK(network.getNumberOfLayers() == std::size_t{3});
+    // The input is not a layer: 2 inputs -> 3 tanh units -> 1 linear output is two layers.
+    NeuralNetwork network(2, {{3, ActivationType::Tanh}, {1, ActivationType::Linear}});
+    CHECK(network.getNumberOfLayers() == std::size_t{2});
     CHECK(network.getInputSize() == std::size_t{2});
     CHECK(network.getOutputSize() == std::size_t{1});
-    CHECK(network.getLayer(1).getNumberOfNeurons() == std::size_t{3});
-    CHECK(network.getLayer(1).getNumberOfInputs() == std::size_t{2});
-    CHECK(network.getLayer(2).getNumberOfInputs() == std::size_t{3});
-    CHECK(network.getLayer(2).getActivationType() == ActivationType::Sigmoid);
+    CHECK(network.getLayer(0).getNumberOfNeurons() == std::size_t{3});
+    CHECK(network.getLayer(0).getNumberOfInputs() == std::size_t{2});
+    CHECK(network.getLayer(0).getActivationType() == ActivationType::Tanh);
+    CHECK(network.getLayer(1).getNumberOfNeurons() == std::size_t{1});
+    CHECK(network.getLayer(1).getNumberOfInputs() == std::size_t{3});
+    CHECK(network.getLayer(1).getActivationType() == ActivationType::Linear);
+}
+
+TEST_CASE("A single-layer network maps inputs straight to outputs", "[validation]") {
+    // Logistic regression: 4 inputs -> 1 sigmoid unit, with no hidden or hidden-input layer.
+    NeuralNetwork network(4, {{1, ActivationType::Sigmoid}});
+    CHECK(network.getNumberOfLayers() == std::size_t{1});
+    CHECK(network.getInputSize() == std::size_t{4});
+    CHECK(network.getLayer(0).getNumberOfInputs() == std::size_t{4});
+    CHECK(network.predict({1.0, 2.0, 3.0, 4.0}).size() == std::size_t{1});
 }

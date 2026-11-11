@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <iterator>
 #include <stdexcept>
 #include <utility>
@@ -12,18 +13,38 @@ namespace {
 
 /// Half-width of the uniform distribution the weights are drawn from.
 ///
-/// Glorot & Bengio (2010): U(-l, l), l = sqrt(6 / (fan_in + fan_out)) for sigmoid/tanh.
+/// Glorot & Bengio (2010): U(-l, l), l = sqrt(6 / (fan_in + fan_out)) for sigmoid/tanh/linear.
 /// He et al. (2015):       U(-l, l), l = sqrt(6 / fan_in)            for the ReLU family.
 double initializationLimit(ActivationType type, std::size_t fanIn, std::size_t fanOut) {
     switch (type) {
     case ActivationType::Sigmoid:
     case ActivationType::Tanh:
+    case ActivationType::Linear:
         return std::sqrt(6.0 / static_cast<double>(fanIn + fanOut));
     case ActivationType::ReLU:
     case ActivationType::LeakyReLU:
         return std::sqrt(6.0 / static_cast<double>(fanIn));
     }
     throw std::invalid_argument("Unknown activation function type.");
+}
+
+/// A uniform double in [0, 1) with 53 random bits, built from two 32-bit engine outputs
+/// (the same construction as genrand_res53 in the reference Mersenne Twister code).
+///
+/// std::uniform_real_distribution is deliberately not used: its algorithm is
+/// implementation-defined, so libstdc++, libc++ and the MSVC STL turn the same seed into
+/// different weights. std::mt19937's output sequence is fully specified by the standard and
+/// every operation below is exact, so a seed produces bit-identical weights on every platform
+/// that evaluates double in IEEE-754 binary64 (see ADR 0005).
+// cppcheck-suppress constParameterReference ; rng() advances the engine, so it cannot be const
+double uniformUnitInterval(std::mt19937& rng) {
+    // mt19937 outputs are always < 2^32, whatever the width of result_type (32 bits on MSVC,
+    // 64 on glibc); the widening to uint64_t is implicit because an explicit cast would be a
+    // -Wuseless-cast error on GCC where the types coincide.
+    const std::uint64_t high = rng() >> 5U; // top 27 bits
+    const std::uint64_t low = rng() >> 6U;  // top 26 bits
+    constexpr double kTwoToMinus53 = 0x1.0p-53;
+    return static_cast<double>((high << 26U) | low) * kTwoToMinus53;
 }
 
 } // namespace
@@ -40,14 +61,14 @@ Layer::Layer(std::size_t numberOfNeurons, std::size_t numberOfInputsPerNeuron,
 
     const double limit =
         initializationLimit(activationType, numberOfInputsPerNeuron, numberOfNeurons);
-    // NOTE: std::uniform_real_distribution is implementation-defined, so a given seed is
-    // reproducible per standard library (libstdc++, libc++, MSVC STL) but not across them.
-    std::uniform_real_distribution<double> distribution(-limit, limit);
 
     neurons_.reserve(numberOfNeurons);
     for (std::size_t n = 0; n < numberOfNeurons; ++n) {
         std::vector<double> weights(numberOfInputsPerNeuron);
-        std::ranges::generate(weights, [&] { return distribution(rng); });
+        // 2u - 1 is exact for u in [0, 1), so the result is one correctly rounded multiply and
+        // cannot change under floating-point contraction (FMA) settings.
+        std::ranges::generate(weights,
+                              [&] { return limit * ((2.0 * uniformUnitInterval(rng)) - 1.0); });
         neurons_.emplace_back(std::move(weights), 0.0, activationType);
     }
 }

@@ -13,6 +13,7 @@ option(NEURALNET_BUILD_EXAMPLES    "Build the example programs"                 
 option(NEURALNET_WARNINGS_AS_ERRORS "Treat compiler warnings as errors"         ${PROJECT_IS_TOP_LEVEL})
 option(NEURALNET_ENABLE_SANITIZERS "Build with AddressSanitizer + UBSan"        OFF)
 option(NEURALNET_ENABLE_COVERAGE   "Instrument for line coverage (GCC/Clang)"   OFF)
+option(NEURALNET_INSTALL           "Generate install rules and a CMake package" ${PROJECT_IS_TOP_LEVEL})
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,6 +26,7 @@ if(PROJECT_IS_TOP_LEVEL AND NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYP
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
+include(GNUInstallDirs)
 include(cmake/CompilerWarnings.cmake)
 
 if(NEURALNET_ENABLE_SANITIZERS)
@@ -58,11 +60,41 @@ add_library(neuralnet::neuralnet ALIAS neuralnet)
 target_include_directories(neuralnet
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_features(neuralnet PUBLIC cxx_std_20)
 # BUILD_INTERFACE keeps the build-only warnings target out of the static library's exported
-# link interface, so the target can later be installed/exported.
+# link interface; without it install(EXPORT) fails because neuralnet::warnings is not exported.
 target_link_libraries(neuralnet PRIVATE $<BUILD_INTERFACE:neuralnet::warnings>)
+
+# ---------------------------------------------------------------------------
+# Installation and CMake package (find_package(NeuralNet) + neuralnet::neuralnet)
+# ---------------------------------------------------------------------------
+if(NEURALNET_INSTALL)
+    include(CMakePackageConfigHelpers)
+    set(NEURALNET_CMAKE_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/NeuralNet)
+
+    install(TARGETS neuralnet
+        EXPORT NeuralNetTargets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(EXPORT NeuralNetTargets
+        NAMESPACE neuralnet::
+        DESTINATION ${NEURALNET_CMAKE_DIR})
+
+    configure_package_config_file(cmake/NeuralNetConfig.cmake.in
+        ${CMAKE_CURRENT_BINARY_DIR}/NeuralNetConfig.cmake
+        INSTALL_DESTINATION ${NEURALNET_CMAKE_DIR})
+    # 0.x releases may break the API on every minor version, so only the same minor matches.
+    write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/NeuralNetConfigVersion.cmake
+        COMPATIBILITY SameMinorVersion)
+    install(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/NeuralNetConfig.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/NeuralNetConfigVersion.cmake
+        DESTINATION ${NEURALNET_CMAKE_DIR})
+    install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/neuralnet)
+endif()
 
 # ---------------------------------------------------------------------------
 # Examples and tests

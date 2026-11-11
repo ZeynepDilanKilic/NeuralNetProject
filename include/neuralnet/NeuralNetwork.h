@@ -8,22 +8,45 @@
 
 namespace neuralnet {
 
+/// One trainable, fully connected layer of a NeuralNetwork, e.g. `{4, ActivationType::Tanh}`.
+///
+/// The constructor (rather than a plain aggregate) makes the activation mandatory: an
+/// aggregate would silently value-initialize an omitted activation to Sigmoid.
+struct LayerSpec {
+    constexpr LayerSpec(std::size_t unitCount, ActivationType layerActivation) noexcept
+        : units(unitCount), activation(layerActivation) {}
+
+    // A plain value type: public fields are the point (`spec.units`), the constructor only
+    // exists to make the activation mandatory, and there is no invariant to protect.
+    // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
+    std::size_t units;         ///< Number of neurons (outputs) in the layer; must be > 0.
+    ActivationType activation; ///< Activation applied by every neuron in the layer.
+    // NOLINTEND(misc-non-private-member-variables-in-classes)
+};
+
 /// A feed-forward network trained with per-sample stochastic gradient descent on the
 /// squared-error loss L = 1/2 * sum_i (a_i - y_i)^2.
 class NeuralNetwork {
 public:
     static constexpr std::uint32_t kDefaultSeed = 42;
 
-    /// @param layerSizes      layerSizes[i] is the number of neurons in layer i.
-    ///                        NOTE: layerSizes[0] doubles as the network's input width, so the
-    ///                        first layer is a trainable layer with layerSizes[0] inputs and
-    ///                        layerSizes[0] neurons. Making the input width an explicit
-    ///                        parameter is on the roadmap.
-    /// @param activationType  Activation used by every layer.
-    /// @param seed            Seed for weight initialization; the same seed and standard
-    ///                        library always produce the same network.
-    /// @throws std::invalid_argument if `layerSizes` is empty or contains a zero.
-    NeuralNetwork(const std::vector<std::size_t>& layerSizes, ActivationType activationType,
+    /// Builds a network that takes `inputSize` inputs and applies `layers` in order; the last
+    /// entry is the output layer. The input itself is not a layer and has no weights.
+    ///
+    /// @code
+    /// // 2 inputs -> 4 tanh hidden units -> 1 sigmoid output
+    /// NeuralNetwork network(2, {{4, ActivationType::Tanh}, {1, ActivationType::Sigmoid}});
+    /// @endcode
+    ///
+    /// @param inputSize  Width of the input vector; must be > 0.
+    /// @param layers     The trainable layers, from the first hidden layer to the output.
+    /// @param seed       Seed for weight initialization. Initialization is portable: the same
+    ///                   seed produces bit-identical weights with every compiler and standard
+    ///                   library on platforms that evaluate double in IEEE-754 binary64
+    ///                   (x86-64, ARM64, MSVC; not 32-bit x87 builds), see ADR 0005.
+    /// @throws std::invalid_argument if `inputSize` is 0, `layers` is empty or any layer has
+    ///         zero units. All arguments are checked before any memory is allocated.
+    NeuralNetwork(std::size_t inputSize, const std::vector<LayerSpec>& layers,
                   std::uint32_t seed = kDefaultSeed);
 
     /// Runs a forward pass and returns the output layer's activations.

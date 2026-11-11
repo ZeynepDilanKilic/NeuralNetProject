@@ -1,6 +1,7 @@
 # ADR 0002: Seeded Glorot/He weight initialization
 
-**Status:** Accepted
+**Status:** Accepted. The distribution was later made portable across standard libraries;
+see [ADR 0005](0005-portable-weight-initialization.md).
 **Date:** 2026-09-25
 
 ## Context

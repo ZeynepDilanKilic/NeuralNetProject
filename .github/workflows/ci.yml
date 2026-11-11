@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch or PR makes the older run pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     name: ${{ matrix.name }}
@@ -46,6 +51,50 @@ jobs:
       - name: Test
         run: ctest --test-dir build --build-config Release --output-on-failure
 
+  # The oldest toolchain the README promises: GCC 11, Clang 14 and CMake 3.21.
+  minimum-versions:
+    name: Minimum versions (${{ matrix.compiler }}, CMake 3.21)
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++-11, clang++-14]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CMake 3.21
+        run: |
+          python3 -m pip install --user "cmake==3.21.4"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Configure
+        run: |
+          cmake --version
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DNEURALNET_WARNINGS_AS_ERRORS=ON
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # Installs the library and builds tests/package against the installed tree, so
+  # find_package(NeuralNet) and the exported neuralnet::neuralnet target stay usable.
+  package:
+    name: Install + find_package consumer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and install the library
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DNEURALNET_BUILD_TESTS=OFF -DNEURALNET_BUILD_EXAMPLES=OFF
+          cmake --build build --parallel
+          cmake --install build --prefix "$PWD/stage"
+      - name: Build and run the consumer
+        run: |
+          cmake -S tests/package -B build-consumer -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$PWD/stage"
+          cmake --build build-consumer --parallel
+          ctest --test-dir build-consumer --output-on-failure
+
   sanitizers:
     name: ASan + UBSan (Clang)
     runs-on: ubuntu-latest
@@ -65,25 +114,32 @@ jobs:
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
         run: ctest --test-dir build --output-on-failure
 
+  # Tool versions are pinned (Ubuntu 24.04: LLVM 18, cppcheck 2.13) so that a runner-image
+  # update cannot break unrelated pull requests; bump them deliberately.
   static-analysis:
     name: clang-tidy + cppcheck + clang-format
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang clang-tidy clang-format cppcheck
+          sudo apt-get install -y clang-18 clang-tidy-18 clang-format-18 cppcheck
+          clang-tidy-18 --version
+          clang-format-18 --version
+          cppcheck --version
       - name: Configure (Clang, for an accurate compile_commands.json)
         run: >
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Debug
-          -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_CXX_COMPILER=clang++-18
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
       - name: clang-format
-        run: clang-format --dry-run --Werror include/neuralnet/*.h src/*.cpp examples/*.cpp tests/*.cpp
+        run: >
+          clang-format-18 --dry-run --Werror
+          include/neuralnet/*.h src/*.cpp examples/*.cpp tests/*.cpp tests/package/*.cpp
       - name: clang-tidy
-        run: clang-tidy -p build src/*.cpp examples/*.cpp
+        run: clang-tidy-18 -p build src/*.cpp examples/*.cpp
       - name: cppcheck
         run: >
           cppcheck --std=c++20
@@ -99,7 +155,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install gcovr
-        run: pip install gcovr
+        run: pip install "gcovr==8.8"
       - name: Configure
         run: >
           cmake -S . -B build
