@@ -4,6 +4,7 @@
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <vector>
 
 int main() {
     using neuralnet::ActivationType;
@@ -13,9 +14,8 @@ int main() {
     const std::vector<double> inputs{1.0};
     const std::vector<double> targets{1.0};
 
-    const double lossBefore = network.computeLoss(inputs, targets);
     const double before = network.predict(inputs).at(0);
-    network.train(inputs, targets, 0.1);
+    const double lossBefore = network.train(inputs, targets, 0.1); // loss before the update
     const double lossAfter = network.computeLoss(inputs, targets);
     const double after = network.predict(inputs).at(0);
 

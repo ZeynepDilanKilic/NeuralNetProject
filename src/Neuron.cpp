@@ -47,7 +47,9 @@ double Neuron::activate(ActivationType type, double x) {
     case ActivationType::Sigmoid:
         return 1.0 / (1.0 + std::exp(-x));
     case ActivationType::ReLU:
-        return x > 0.0 ? x : 0.0;
+        // NaN must propagate like it does for every other activation; `x > 0.0 ? x : 0.0`
+        // alone would map NaN to 0 and hide a corrupted input or weight.
+        return (x > 0.0 || std::isnan(x)) ? x : 0.0;
     case ActivationType::Tanh:
         // std::tanh is overflow-safe; (e^x - e^-x) / (e^x + e^-x) is not for |x| > ~709.
         return std::tanh(x);

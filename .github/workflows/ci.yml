@@ -41,14 +41,10 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
+      # Also runs the examples: they are registered as CTest tests and fail with a non-zero
+      # exit code (the old `find -exec` step swallowed their exit status).
       - name: Test
         run: ctest --test-dir build --build-config Release --output-on-failure
-
-      - name: Run examples
-        shell: bash
-        run: |
-          find build -type f \( -name training_check -o -name training_check.exe \) -exec {} \;
-          find build -type f \( -name xor -o -name xor.exe \) -exec {} \;
 
   sanitizers:
     name: ASan + UBSan (Clang)

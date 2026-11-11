@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <vector>
 
 using Catch::Approx;
@@ -61,6 +62,11 @@ TEST_CASE("One gradient step on a single neuron reduces the loss", "[training]")
     const auto activation = GENERATE(ActivationType::Sigmoid, ActivationType::Tanh,
                                      ActivationType::ReLU, ActivationType::LeakyReLU);
     NeuralNetwork network({1}, activation);
+    // Fix the parameters instead of relying on what the seed draws: with a random weight the
+    // ReLU neuron is dead (zero gradient) for about half of all seeds.
+    auto& neuron = network.getLayer(0).getNeuron(0);
+    neuron.setWeight(0, 0.3);
+    neuron.setBias(0.0);
     const std::vector<double> inputs{1.0};
     const std::vector<double> targets{0.5};
 
@@ -71,6 +77,37 @@ TEST_CASE("One gradient step on a single neuron reduces the loss", "[training]")
     INFO("activation " << static_cast<int>(activation));
     CHECK(std::isfinite(lossAfter));
     CHECK(lossAfter < lossBefore);
+}
+
+TEST_CASE("A dead ReLU neuron receives no gradient", "[training]") {
+    // Documents the known ReLU failure mode: with z = w * x + b <= 0 the output and its
+    // derivative are both 0, so training cannot move the neuron out of the dead region.
+    NeuralNetwork network({1}, ActivationType::ReLU);
+    auto& neuron = network.getLayer(0).getNeuron(0);
+    neuron.setWeight(0, -0.3);
+    neuron.setBias(0.0);
+    const std::vector<double> inputs{1.0};
+    const std::vector<double> targets{0.5};
+
+    const double loss = network.train(inputs, targets, 0.1);
+
+    CHECK(loss == Approx(0.125)); // 1/2 * (0 - 0.5)^2
+    CHECK(network.getLayer(0).getNeuron(0).getWeight(0) == -0.3);
+    CHECK(network.getLayer(0).getNeuron(0).getBias() == 0.0);
+}
+
+TEST_CASE("train() returns the loss before the update", "[training]") {
+    const auto activation = GENERATE(ActivationType::Sigmoid, ActivationType::Tanh,
+                                     ActivationType::ReLU, ActivationType::LeakyReLU);
+    NeuralNetwork network({2, 3, 2}, activation, 7);
+    const std::vector<double> inputs{0.4, -0.6};
+    const std::vector<double> targets{0.2, 0.9};
+
+    const double expected = network.computeLoss(inputs, targets);
+    const double returned = network.train(inputs, targets, 0.1);
+
+    INFO("activation " << static_cast<int>(activation));
+    CHECK(returned == expected);
 }
 
 TEST_CASE("A small network learns XOR", "[training]") {

@@ -9,7 +9,7 @@ namespace neuralnet {
 /// Activation function applied to a neuron's weighted sum.
 enum class ActivationType : std::uint8_t {
     Sigmoid,   ///< 1 / (1 + e^-x), output in (0, 1)
-    ReLU,      ///< max(0, x)
+    ReLU,      ///< max(0, x); NaN propagates (unlike std::max(0.0, NaN))
     Tanh,      ///< tanh(x), output in (-1, 1)
     LeakyReLU, ///< x for x > 0, otherwise kLeakyReluSlope * x
 };
@@ -60,9 +60,9 @@ public:
 
 private:
     std::vector<double> weights_;
-    double bias_;
+    double bias_ = 0.0;
     double lastOutput_ = 0.0;
-    ActivationType activationType_;
+    ActivationType activationType_ = ActivationType::Sigmoid;
 };
 
 } // namespace neuralnet

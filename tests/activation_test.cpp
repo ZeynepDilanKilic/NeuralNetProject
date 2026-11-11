@@ -5,6 +5,7 @@
 #include <catch2/generators/catch_generators.hpp>
 
 #include <cmath>
+#include <limits>
 
 using Catch::Approx;
 using neuralnet::ActivationType;
@@ -52,4 +53,29 @@ TEST_CASE("Activation derivatives agree with a central finite difference", "[act
 
     INFO("activation " << static_cast<int>(type) << " at x = " << x);
     CHECK(analytic == Approx(numeric).margin(1e-6));
+}
+
+TEST_CASE("Every activation propagates NaN and handles infinities", "[activation]") {
+    // ReLU used to map NaN to 0, which hid NaN inputs and NaN-poisoned weights entirely.
+    constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    const auto type = GENERATE(ActivationType::Sigmoid, ActivationType::ReLU, ActivationType::Tanh,
+                               ActivationType::LeakyReLU);
+    INFO("activation " << static_cast<int>(type));
+
+    CHECK(std::isnan(Neuron::activate(type, nan)));
+    CHECK(!std::isnan(Neuron::activate(type, inf)));
+    CHECK(!std::isnan(Neuron::activate(type, -inf)));
+}
+
+TEST_CASE("Activations saturate correctly at infinity", "[activation]") {
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    CHECK(Neuron::activate(ActivationType::Sigmoid, inf) == 1.0);
+    CHECK(Neuron::activate(ActivationType::Sigmoid, -inf) == 0.0);
+    CHECK(Neuron::activate(ActivationType::Tanh, inf) == 1.0);
+    CHECK(Neuron::activate(ActivationType::Tanh, -inf) == -1.0);
+    CHECK(Neuron::activate(ActivationType::ReLU, inf) == inf);
+    CHECK(Neuron::activate(ActivationType::ReLU, -inf) == 0.0);
+    CHECK(Neuron::activate(ActivationType::LeakyReLU, inf) == inf);
+    CHECK(Neuron::activate(ActivationType::LeakyReLU, -inf) == -inf);
 }

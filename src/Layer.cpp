@@ -71,7 +71,8 @@ void Layer::updateWeights(const std::vector<double>& errors, double learningRate
 }
 
 std::size_t Layer::getNumberOfInputs() const noexcept {
-    return neurons_.front().getNumberOfInputs();
+    // A constructed layer always has neurons; only a moved-from layer can be empty.
+    return neurons_.empty() ? 0 : neurons_.front().getNumberOfInputs();
 }
 
 const Neuron& Layer::getNeuron(std::size_t index) const {

@@ -35,6 +35,7 @@ public:
                        const std::vector<double>& inputs);
 
     [[nodiscard]] std::size_t getNumberOfNeurons() const noexcept { return neurons_.size(); }
+    /// Number of inputs each neuron takes; 0 for a moved-from layer.
     [[nodiscard]] std::size_t getNumberOfInputs() const noexcept;
     [[nodiscard]] ActivationType getActivationType() const noexcept { return activationType_; }
     /// @throws std::out_of_range if `index` is invalid.
