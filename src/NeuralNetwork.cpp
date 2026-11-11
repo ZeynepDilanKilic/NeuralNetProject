@@ -4,20 +4,32 @@
 #include <cmath>
 #include <random>
 #include <stdexcept>
+#include <string>
 
 namespace neuralnet {
 
-NeuralNetwork::NeuralNetwork(const std::vector<std::size_t>& layerSizes,
-                             ActivationType activationType, std::uint32_t seed) {
-    if (layerSizes.empty()) {
+NeuralNetwork::NeuralNetwork(std::size_t inputSize, const std::vector<LayerSpec>& layers,
+                             std::uint32_t seed) {
+    if (inputSize == 0) {
+        throw std::invalid_argument("A network needs at least one input.");
+    }
+    if (layers.empty()) {
         throw std::invalid_argument("A network needs at least one layer.");
+    }
+    // Validate every layer before allocating anything, and say which one is wrong.
+    for (std::size_t i = 0; i < layers.size(); ++i) {
+        if (layers[i].units == 0) {
+            throw std::invalid_argument("layers[" + std::to_string(i) +
+                                        "].units must be at least 1.");
+        }
     }
 
     std::mt19937 rng(seed);
-    layers_.reserve(layerSizes.size());
-    for (std::size_t i = 0; i < layerSizes.size(); ++i) {
-        const std::size_t numberOfInputsPerNeuron = (i == 0) ? layerSizes[0] : layerSizes[i - 1];
-        layers_.emplace_back(layerSizes[i], numberOfInputsPerNeuron, activationType, rng);
+    layers_.reserve(layers.size());
+    std::size_t fanIn = inputSize;
+    for (const LayerSpec& spec : layers) {
+        layers_.emplace_back(spec.units, fanIn, spec.activation, rng);
+        fanIn = spec.units;
     }
 }
 

@@ -37,11 +37,18 @@ TEST_CASE("Activation functions produce the expected values", "[activation]") {
               Approx(-2.0 * Neuron::kLeakyReluSlope));
         CHECK(Neuron::activate(ActivationType::LeakyReLU, 3.5) == 3.5);
     }
+
+    SECTION("Linear") {
+        CHECK(Neuron::activate(ActivationType::Linear, -2.5) == -2.5);
+        CHECK(Neuron::activate(ActivationType::Linear, 0.0) == 0.0);
+        CHECK(Neuron::activate(ActivationType::Linear, 3.5) == 3.5);
+        CHECK(Neuron::activationDerivative(ActivationType::Linear, -7.0) == 1.0);
+    }
 }
 
 TEST_CASE("Activation derivatives agree with a central finite difference", "[activation]") {
     const auto type = GENERATE(ActivationType::Sigmoid, ActivationType::ReLU, ActivationType::Tanh,
-                               ActivationType::LeakyReLU);
+                               ActivationType::LeakyReLU, ActivationType::Linear);
     const double x = GENERATE(-3.0, -0.5, 0.7, 2.5);
     constexpr double epsilon = 1e-6;
 
@@ -60,7 +67,7 @@ TEST_CASE("Every activation propagates NaN and handles infinities", "[activation
     constexpr double nan = std::numeric_limits<double>::quiet_NaN();
     constexpr double inf = std::numeric_limits<double>::infinity();
     const auto type = GENERATE(ActivationType::Sigmoid, ActivationType::ReLU, ActivationType::Tanh,
-                               ActivationType::LeakyReLU);
+                               ActivationType::LeakyReLU, ActivationType::Linear);
     INFO("activation " << static_cast<int>(type));
 
     CHECK(std::isnan(Neuron::activate(type, nan)));
@@ -78,4 +85,6 @@ TEST_CASE("Activations saturate correctly at infinity", "[activation]") {
     CHECK(Neuron::activate(ActivationType::ReLU, -inf) == 0.0);
     CHECK(Neuron::activate(ActivationType::LeakyReLU, inf) == inf);
     CHECK(Neuron::activate(ActivationType::LeakyReLU, -inf) == -inf);
+    CHECK(Neuron::activate(ActivationType::Linear, inf) == inf);
+    CHECK(Neuron::activate(ActivationType::Linear, -inf) == -inf);
 }

@@ -12,6 +12,7 @@ enum class ActivationType : std::uint8_t {
     ReLU,      ///< max(0, x); NaN propagates (unlike std::max(0.0, NaN))
     Tanh,      ///< tanh(x), output in (-1, 1)
     LeakyReLU, ///< x for x > 0, otherwise kLeakyReluSlope * x
+    Linear,    ///< x (identity); the usual output activation for regression
 };
 
 /// A single artificial neuron: a = f(w . x + b).

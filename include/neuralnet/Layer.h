@@ -14,7 +14,10 @@ public:
     /// Creates `numberOfNeurons` neurons with `numberOfInputsPerNeuron` weights each.
     ///
     /// Weights are drawn from `rng` with Glorot (Xavier) uniform initialization for
-    /// Sigmoid/Tanh and He uniform initialization for ReLU/LeakyReLU. Biases start at zero.
+    /// Sigmoid/Tanh/Linear and He uniform initialization for ReLU/LeakyReLU. Biases start at
+    /// zero. The draw is portable: the same engine state gives bit-identical weights with every
+    /// compiler and standard library on IEEE-754 binary64 platforms (see ADR 0005).
+    ///
     /// Random initialization is what breaks the symmetry between neurons; if every neuron
     /// started with identical weights they would receive identical gradients and never
     /// diverge, collapsing the layer to a single effective neuron.
