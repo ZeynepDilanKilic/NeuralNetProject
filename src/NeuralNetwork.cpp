@@ -1,5 +1,6 @@
 #include "neuralnet/NeuralNetwork.h"
 
+#include <algorithm>
 #include <cmath>
 #include <random>
 #include <stdexcept>
@@ -20,7 +21,32 @@ NeuralNetwork::NeuralNetwork(const std::vector<std::size_t>& layerSizes,
     }
 }
 
+namespace {
+
+bool allFinite(const std::vector<double>& values) {
+    return std::ranges::all_of(values, [](double value) { return std::isfinite(value); });
+}
+
+/// 1/2 * sum_i (outputs_i - targets_i)^2; the sizes must already agree.
+double squaredErrorLoss(const std::vector<double>& outputs, const std::vector<double>& targets) {
+    double loss = 0.0;
+    for (std::size_t i = 0; i < outputs.size(); ++i) {
+        const double difference = outputs[i] - targets[i];
+        loss += 0.5 * difference * difference;
+    }
+    return loss;
+}
+
+} // namespace
+
+void NeuralNetwork::requireLayers() const {
+    if (layers_.empty()) {
+        throw std::logic_error("The network has no layers (it was moved from).");
+    }
+}
+
 std::vector<double> NeuralNetwork::predict(const std::vector<double>& inputs) {
+    requireLayers();
     if (inputs.size() != getInputSize()) {
         throw std::invalid_argument("Input size must match the network's input width.");
     }
@@ -33,20 +59,18 @@ std::vector<double> NeuralNetwork::predict(const std::vector<double>& inputs) {
 
 double NeuralNetwork::computeLoss(const std::vector<double>& inputs,
                                   const std::vector<double>& expectedOutputs) {
-    const std::vector<double> outputs = predict(inputs);
-    if (outputs.size() != expectedOutputs.size()) {
+    requireLayers();
+    // Validate the targets before running the forward pass, which would otherwise be wasted.
+    if (expectedOutputs.size() != getOutputSize()) {
         throw std::invalid_argument("Target size must match the output size.");
     }
-    double loss = 0.0;
-    for (std::size_t i = 0; i < outputs.size(); ++i) {
-        const double difference = outputs[i] - expectedOutputs[i];
-        loss += 0.5 * difference * difference;
-    }
-    return loss;
+    return squaredErrorLoss(predict(inputs), expectedOutputs);
 }
 
-void NeuralNetwork::train(const std::vector<double>& inputs,
-                          const std::vector<double>& expectedOutputs, double learningRate) {
+double NeuralNetwork::train(const std::vector<double>& inputs,
+                            const std::vector<double>& expectedOutputs, double learningRate) {
+    // Every check runs before any state changes, so a throwing call leaves the network as it was.
+    requireLayers();
     if (!std::isfinite(learningRate) || learningRate <= 0.0) {
         throw std::invalid_argument("Learning rate must be finite and positive.");
     }
@@ -55,6 +79,13 @@ void NeuralNetwork::train(const std::vector<double>& inputs,
     }
     if (expectedOutputs.size() != getOutputSize()) {
         throw std::invalid_argument("Target size must match the output size.");
+    }
+    // A single NaN or infinity would silently and permanently poison every weight it reaches.
+    if (!allFinite(inputs)) {
+        throw std::invalid_argument("Inputs must be finite.");
+    }
+    if (!allFinite(expectedOutputs)) {
+        throw std::invalid_argument("Targets must be finite.");
     }
 
     // 1. Forward pass, keeping the input of every layer (activations[i] feeds layers_[i]).
@@ -74,10 +105,14 @@ void NeuralNetwork::train(const std::vector<double>& inputs,
         errors[i - 1] = calculateHiddenLayerError(layers_[i - 1], errors[i], layers_[i]);
     }
 
+    // The loss of this sample under the pre-update weights comes for free from the forward pass.
+    const double loss = squaredErrorLoss(activations.back(), expectedOutputs);
+
     // 3. Update. Each neuron multiplies dL/da by its own activation derivative exactly once.
     for (std::size_t i = 0; i < layers_.size(); ++i) {
         layers_[i].updateWeights(errors[i], learningRate, activations[i]);
     }
+    return loss;
 }
 
 std::vector<double>
@@ -114,12 +149,14 @@ std::vector<double> NeuralNetwork::calculateHiddenLayerError(
     return errors;
 }
 
+// A constructed network always has layers; only a moved-from network can be empty, and its
+// accessors must stay well-defined (they are noexcept and must not dereference front()/back()).
 std::size_t NeuralNetwork::getInputSize() const noexcept {
-    return layers_.front().getNumberOfInputs();
+    return layers_.empty() ? 0 : layers_.front().getNumberOfInputs();
 }
 
 std::size_t NeuralNetwork::getOutputSize() const noexcept {
-    return layers_.back().getNumberOfNeurons();
+    return layers_.empty() ? 0 : layers_.back().getNumberOfNeurons();
 }
 
 const Layer& NeuralNetwork::getLayer(std::size_t index) const {

@@ -19,7 +19,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+# Only pick a default build type when this is the top-level project; as a subproject the
+# parent owns CMAKE_BUILD_TYPE and must not find it forced into its cache.
+if(PROJECT_IS_TOP_LEVEL AND NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
@@ -58,16 +60,23 @@ target_include_directories(neuralnet
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
 target_compile_features(neuralnet PUBLIC cxx_std_20)
-target_link_libraries(neuralnet PRIVATE neuralnet::warnings)
+# BUILD_INTERFACE keeps the build-only warnings target out of the static library's exported
+# link interface, so the target can later be installed/exported.
+target_link_libraries(neuralnet PRIVATE $<BUILD_INTERFACE:neuralnet::warnings>)
 
 # ---------------------------------------------------------------------------
 # Examples and tests
 # ---------------------------------------------------------------------------
+# The examples double as CTest tests, so testing is enabled whenever either is built. This
+# only affects this directory tree, so it is also correct when NeuralNet is a subproject.
+if(NEURALNET_BUILD_TESTS OR NEURALNET_BUILD_EXAMPLES)
+    enable_testing()
+endif()
+
 if(NEURALNET_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
 if(NEURALNET_BUILD_TESTS)
-    enable_testing()
     add_subdirectory(tests)
 endif()
