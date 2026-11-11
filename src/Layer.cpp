@@ -36,6 +36,7 @@ double initializationLimit(ActivationType type, std::size_t fanIn, std::size_t f
 /// different weights. std::mt19937's output sequence is fully specified by the standard and
 /// every operation below is exact, so a seed produces bit-identical weights on every platform
 /// that evaluates double in IEEE-754 binary64 (see ADR 0005).
+// cppcheck-suppress constParameterReference ; rng() advances the engine, so it cannot be const
 double uniformUnitInterval(std::mt19937& rng) {
     // mt19937 outputs are always < 2^32, whatever the width of result_type (32 bits on MSVC,
     // 64 on glibc); the widening to uint64_t is implicit because an explicit cast would be a
