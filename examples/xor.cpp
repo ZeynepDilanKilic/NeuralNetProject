@@ -33,6 +33,7 @@ int main() {
         double epochLoss = 0.0;
         for (const Sample& sample : dataset) {
             // train() returns the sample's loss before the update, so no extra forward pass.
+            // cppcheck-suppress useStlAlgorithm ; each step mutates the network, not a pure fold
             epochLoss += network.train(sample.inputs, sample.target, learningRate);
         }
         if (epoch % 1000 == 0) {

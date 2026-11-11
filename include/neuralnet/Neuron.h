@@ -60,9 +60,9 @@ public:
 
 private:
     std::vector<double> weights_;
-    double bias_;
+    double bias_ = 0.0;
     double lastOutput_ = 0.0;
-    ActivationType activationType_;
+    ActivationType activationType_ = ActivationType::Sigmoid;
 };
 
 } // namespace neuralnet
